@@ -56,6 +56,14 @@ def row(r):
     return dict(r) if r else None
 
 
+@web.middleware
+async def no_cache(request, handler):
+    resp = await handler(request)
+    if request.path.startswith("/api/"):
+        resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
 async def index(request):
     return web.FileResponse(os.path.join(HERE, "index.html"))
 
@@ -65,6 +73,7 @@ async def get_me(request):
     db.execute("UPDATE users SET username=? WHERE id=?", (u.get("username"), u["id"]))
     db.commit()
     r = db.execute("SELECT * FROM users WHERE id=?", (u["id"],)).fetchone()
+    print(f"GET /api/me user={u['id']} found={r is not None}", flush=True)
     return web.json_response({"me": row(r)})
 
 
@@ -87,6 +96,7 @@ async def put_me(request):
         age=excluded.age, bio=excluded.bio, photo=excluded.photo""",
                (u["id"], u.get("username"), name, age, bio, photo))
     db.commit()
+    print(f"PUT /api/me user={u['id']} saved", flush=True)
     return web.json_response({"ok": True})
 
 
@@ -161,7 +171,7 @@ async def matches(request):
 
 async def main():
     bot = Bot(TOKEN)
-    app = web.Application(client_max_size=2 * 1024 * 1024)
+    app = web.Application(client_max_size=2 * 1024 * 1024, middlewares=[no_cache])
     app["bot"] = bot
     app.add_routes([
         web.get("/", index),
