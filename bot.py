@@ -13,6 +13,7 @@ PORT = int(os.getenv("PORT", "8080"))
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 DATA_DIR = os.getenv("DATA_DIR", HERE)  # на Railway сюда монтируется Volume
+os.makedirs(DATA_DIR, exist_ok=True)
 db = sqlite3.connect(os.path.join(DATA_DIR, "allies.db"), check_same_thread=False)
 db.row_factory = sqlite3.Row
 db.executescript("""
@@ -22,6 +23,8 @@ CREATE TABLE IF NOT EXISTS users(
 CREATE TABLE IF NOT EXISTS swipes(
   a INTEGER, b INTEGER, liked INTEGER, PRIMARY KEY(a, b));
 """)
+
+print("DB path:", os.path.join(DATA_DIR, "allies.db"), "| users in DB:", db.execute("SELECT COUNT(*) FROM users").fetchone()[0], flush=True)
 
 dp = Dispatcher()
 
