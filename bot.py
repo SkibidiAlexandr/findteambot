@@ -1,4 +1,4 @@
-import asyncio, hashlib, hmac, json, os, sqlite3, time
+import asyncio, hashlib, hmac, json, os, random, re, sqlite3, time
 from urllib.parse import parse_qsl
 
 from aiohttp import web
@@ -12,6 +12,9 @@ WEBAPP_URL = os.environ["WEBAPP_URL"]  # публичный https-адрес э�
 PORT = int(os.getenv("PORT", "8080"))
 HERE = os.path.dirname(os.path.abspath(__file__))
 
+GAME_RE = re.compile(r"[a-z0-9_]{1,24}")  # id игры из каталога в index.html
+MAX_GAMES = 60
+
 DATA_DIR = os.getenv("DATA_DIR", HERE)  # на Railway сюда монтируется Volume
 os.makedirs(DATA_DIR, exist_ok=True)
 db = sqlite3.connect(os.path.join(DATA_DIR, "allies.db"), check_same_thread=False)
@@ -23,6 +26,10 @@ CREATE TABLE IF NOT EXISTS users(
 CREATE TABLE IF NOT EXISTS swipes(
   a INTEGER, b INTEGER, liked INTEGER, PRIMARY KEY(a, b));
 """)
+# миграция: у старой базы нет колонки games
+if "games" not in [c["name"] for c in db.execute("PRAGMA table_info(users)")]:
+    db.execute("ALTER TABLE users ADD COLUMN games TEXT DEFAULT ''")
+    db.commit()
 
 print("DB path:", os.path.join(DATA_DIR, "allies.db"), "| users in DB:", db.execute("SELECT COUNT(*) FROM users").fetchone()[0], flush=True)
 
@@ -52,8 +59,17 @@ def auth(request):
     return json.loads(pairs["user"])
 
 
+def parse_games(s):
+    return [g for g in (s or "").split(",") if g]
+
+
 def row(r):
-    return dict(r) if r else None
+    if not r:
+        return None
+    d = dict(r)
+    if "games" in d:
+        d["games"] = parse_games(d["games"])
+    return d
 
 
 @web.middleware
@@ -91,10 +107,19 @@ async def put_me(request):
         raise web.HTTPBadRequest()
     if not photo.startswith("data:image/jpeg;base64,") or len(photo) > 400_000:
         raise web.HTTPBadRequest()
-    db.execute("""INSERT INTO users(id,username,name,age,bio,photo) VALUES(?,?,?,?,?,?)
+    raw = d.get("games")
+    if not isinstance(raw, list):
+        raise web.HTTPBadRequest()
+    games = []
+    for g in raw:
+        if isinstance(g, str) and GAME_RE.fullmatch(g) and g not in games:
+            games.append(g)
+    if not (1 <= len(games) <= MAX_GAMES):
+        raise web.HTTPBadRequest()
+    db.execute("""INSERT INTO users(id,username,name,age,bio,photo,games) VALUES(?,?,?,?,?,?,?)
         ON CONFLICT(id) DO UPDATE SET username=excluded.username, name=excluded.name,
-        age=excluded.age, bio=excluded.bio, photo=excluded.photo""",
-               (u["id"], u.get("username"), name, age, bio, photo))
+        age=excluded.age, bio=excluded.bio, photo=excluded.photo, games=excluded.games""",
+               (u["id"], u.get("username"), name, age, bio, photo, ",".join(games)))
     db.commit()
     print(f"PUT /api/me user={u['id']} saved", flush=True)
     return web.json_response({"ok": True})
@@ -122,17 +147,30 @@ async def settings(request):
 
 
 async def nxt(request):
+    """Следующие анкеты: сначала те, у кого больше общих игр,
+    при равенстве — те, кто уже лайкнул тебя, дальше случайно."""
     u = auth(request)
-    me = db.execute("SELECT amin,amax FROM users WHERE id=?", (u["id"],)).fetchone()
+    me = db.execute("SELECT amin,amax,games FROM users WHERE id=?", (u["id"],)).fetchone()
     if not me:
         raise web.HTTPForbidden()
-    rows = db.execute("""
-        SELECT id,name,age,bio,photo FROM users x
+    mine = set(parse_games(me["games"]))
+    cand = db.execute("""
+        SELECT id, games,
+               EXISTS(SELECT 1 FROM swipes WHERE a=x.id AND b=? AND liked=1) AS likedme
+        FROM users x
         WHERE id!=? AND age BETWEEN ? AND ?
-          AND NOT EXISTS(SELECT 1 FROM swipes WHERE a=? AND b=x.id)
-        ORDER BY EXISTS(SELECT 1 FROM swipes WHERE a=x.id AND b=? AND liked=1) DESC, RANDOM()
-        LIMIT 5""", (u["id"], me["amin"], me["amax"], u["id"], u["id"])).fetchall()
-    return web.json_response({"users": [dict(r) for r in rows]})
+          AND NOT EXISTS(SELECT 1 FROM swipes WHERE a=? AND b=x.id)""",
+                      (u["id"], u["id"], me["amin"], me["amax"], u["id"])).fetchall()
+    scored = sorted(
+        ((len(mine & set(parse_games(r["games"]))), r["likedme"], random.random(), r["id"])
+         for r in cand), reverse=True)
+    ids = [s[3] for s in scored[:5]]
+    if not ids:
+        return web.json_response({"users": []})
+    marks = ",".join("?" * len(ids))
+    rows = {r["id"]: r for r in db.execute(
+        f"SELECT id,name,age,bio,photo,games FROM users WHERE id IN ({marks})", ids)}
+    return web.json_response({"users": [row(rows[i]) for i in ids]})
 
 
 async def swipe(request):
@@ -161,12 +199,12 @@ async def swipe(request):
 async def matches(request):
     u = auth(request)
     rows = db.execute("""
-        SELECT x.id,x.username,x.name,x.age,x.bio,x.photo
+        SELECT x.id,x.username,x.name,x.age,x.bio,x.photo,x.games
         FROM swipes s1 JOIN swipes s2 ON s2.a=s1.b AND s2.b=s1.a
         JOIN users x ON x.id=s1.b
         WHERE s1.a=? AND s1.liked=1 AND s2.liked=1 ORDER BY s1.rowid DESC""",
                       (u["id"],)).fetchall()
-    return web.json_response({"matches": [dict(r) for r in rows]})
+    return web.json_response({"matches": [row(r) for r in rows]})
 
 
 async def main():

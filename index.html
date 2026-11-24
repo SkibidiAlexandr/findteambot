@@ -30,6 +30,8 @@ nav button.on{color:var(--ac)}
 .card .info{padding:14px 16px 18px}
 .card .info b{font-size:22px}
 .card .info p{margin:6px 0 0;color:var(--mut);font-size:15px}
+.card .info .bio{display:-webkit-box;-webkit-line-clamp:3;line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.cm{position:absolute;left:12px;bottom:12px;padding:4px 11px;border-radius:999px;background:rgba(0,0,0,.65);color:#fff;font-size:13px;font-weight:600;pointer-events:none}
 .tag{position:absolute;top:18px;padding:4px 12px;border:3px solid;border-radius:10px;font-weight:800;font-size:22px;opacity:0;transform:rotate(-12deg)}
 .tag.l{left:16px;color:var(--ok)}.tag.n{right:16px;color:var(--no);transform:rotate(12deg)}
 .acts{display:flex;justify-content:center;gap:28px;margin-top:16px}
@@ -45,7 +47,8 @@ textarea{resize:none;height:90px}
 .btn{width:100%;margin-top:18px;padding:14px;border:0;border-radius:14px;background:var(--ac);color:#fff;font:700 16px system-ui,sans-serif;cursor:pointer}
 .btn.sec{background:var(--card);color:var(--tx);border:1px solid var(--bd);margin-top:10px}
 .btn.red{background:none;color:var(--no);border:1px solid var(--no)}
-.photo{width:120px;height:120px;border-radius:50%;margin:8px auto;overflow:hidden;background:var(--card);border:2px dashed var(--bd);display:flex;align-items:center;justify-content:center;color:var(--mut);cursor:pointer;text-align:center;font-size:13px}
+.photo{width:130px;height:130px;border-radius:50%;margin:8px auto 0;overflow:hidden;background:var(--card);border:2px dashed var(--bd);display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--mut);cursor:pointer;text-align:center;font-size:13px}
+.photo .plus{font-size:46px;line-height:1;font-weight:300;color:var(--ac)}
 .photo img{width:100%;height:100%;object-fit:cover}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:24px;z-index:10}
 .modal.on{display:flex}
@@ -54,6 +57,28 @@ textarea{resize:none;height:90px}
 .sheet .box{max-width:520px;border-radius:22px 22px 0 0;text-align:left;padding-bottom:calc(22px + env(safe-area-inset-bottom,0px))}
 .two{display:flex;gap:10px}
 h2{margin:0 0 6px}
+
+/* выбор игр */
+.games{background:var(--card);border:1px solid var(--bd);border-radius:24px;padding:12px 10px 4px}
+.gsearch{padding:9px 14px;border-radius:999px;background:var(--bg);margin-bottom:10px}
+.gscroll{max-height:262px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:6px 2px 10px}
+.ggrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px 6px}
+.g{background:none;border:0;padding:0;margin:0;color:var(--tx);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font:inherit}
+.gi{position:relative;width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:16px;letter-spacing:-.3px;border:3px solid var(--card);box-shadow:0 0 0 2px var(--bd);filter:saturate(.3);opacity:.7;transition:transform .15s,box-shadow .15s,opacity .15s,filter .15s}
+.gi.sm{font-size:12px}
+.g:active .gi{transform:scale(.92)}
+.g.on .gi{filter:none;opacity:1;box-shadow:0 0 0 3px var(--ac)}
+.g.on .gi::after{content:'✓';position:absolute;right:-6px;top:-6px;width:22px;height:22px;border-radius:50%;background:var(--ac);color:#fff;font-size:13px;line-height:22px;text-align:center;border:2px solid var(--card)}
+.gn{font-size:12px;line-height:1.15;text-align:center;color:var(--mut);max-width:96px;overflow-wrap:anywhere}
+.g.on .gn{color:var(--tx);font-weight:600}
+.gno{grid-column:1/-1;text-align:center;color:var(--mut);margin:16px 0}
+.ghint{display:flex;justify-content:space-between;font-size:13px;color:var(--mut);margin:6px 6px 0}
+
+/* игры на карточках */
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;max-height:58px;overflow:hidden}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px 3px 4px;border-radius:999px;background:var(--bg);border:1px solid var(--bd);font-size:12px;color:var(--mut)}
+.chip i{width:14px;height:14px;border-radius:50%;display:block}
+.chip.com{background:var(--bg);background:color-mix(in srgb,var(--ac) 14%,transparent);border-color:var(--ac);color:var(--tx);font-weight:600}
 </style>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
@@ -97,23 +122,112 @@ function go(t){
 }
 NAV.addEventListener('click',function(e){var b=e.target.closest('button');if(b&&S.me)go(b.dataset.t)});
 
-var tmpPhoto=null;
+/* Каталог игр: [id, надпись в круге, название, цвет].
+   Чтобы добавить игру — допишите строку. id: латиница/цифры/_ , до 24 символов, не меняйте после запуска. */
+var GAMES=[
+['cs2','CS2','Counter-Strike 2','#d97706'],
+['dota2','D2','Dota 2','#dc2626'],
+['pubg','PUBG','PUBG','#a16207'],
+['valorant','VAL','Valorant','#f43f5e'],
+['deadlock','DL','Deadlock','#7c3aed'],
+['minecraft','MC','Minecraft','#16a34a'],
+['apex','APEX','Apex Legends','#e11d48'],
+['fortnite','FN','Fortnite','#8b5cf6'],
+['lol','LoL','League of Legends','#2563eb'],
+['ow2','OW2','Overwatch 2','#f97316'],
+['marvelrivals','MR','Marvel Rivals','#4f46e5'],
+['rust','RUST','Rust','#b45309'],
+['gta','GTA','GTA V / Online','#0d9488'],
+['cod','COD','Call of Duty / Warzone','#4b5563'],
+['r6','R6','Rainbow Six Siege','#0ea5e9'],
+['tarkov','EFT','Escape from Tarkov','#78716c'],
+['standoff','SO2','Standoff 2','#e11d48'],
+['pubgm','PUBGM','PUBG Mobile','#ca8a04'],
+['mlbb','MLBB','Mobile Legends','#0891b2'],
+['freefire','FF','Free Fire','#ea580c'],
+['brawl','BS','Brawl Stars','#c2860a'],
+['clash','CR','Clash Royale','#3b82f6'],
+['roblox','RBX','Roblox','#475569'],
+['genshin','GI','Genshin Impact','#14b8a6'],
+['hsr','HSR','Honkai: Star Rail','#6366f1'],
+['wow','WoW','World of Warcraft','#1d4ed8'],
+['diablo','D4','Diablo IV','#b91c1c'],
+['poe','PoE','Path of Exile','#92400e'],
+['dbd','DBD','Dead by Daylight','#991b1b'],
+['amongus','AU','Among Us','#be123c'],
+['terraria','TER','Terraria','#15803d'],
+['stardew','SDV','Stardew Valley','#4d7c0f'],
+['lethal','LC','Lethal Company','#c2410c'],
+['helldivers','HD2','Helldivers 2','#a16207'],
+['thefinals','FIN','The Finals','#db2777'],
+['rocket','RL','Rocket League','#0369a1'],
+['fc','FC','EA FC','#059669'],
+['valheim','VH','Valheim','#57534e'],
+['palworld','PAL','Palworld','#0e7490'],
+['bf','BF','Battlefield','#334155'],
+['destiny','DES','Destiny 2','#7e22ce'],
+['wot','WoT','World of Tanks','#65a30d'],
+['warthunder','WT','War Thunder','#854d0e'],
+['tf2','TF2','Team Fortress 2','#ea580c'],
+['l4d','L4D','Left 4 Dead 2','#9f1239'],
+['hearthstone','HS','Hearthstone','#0e7490'],
+['osu','osu!','osu!','#ec4899']
+];
+var GM={};GAMES.forEach(function(g){GM[g[0]]=g});
+
+function chips(list,mine,max){
+  list=(list||[]).filter(function(id){return GM[id]});
+  if(!list.length)return '';
+  if(mine){var c=list.filter(function(id){return mine.indexOf(id)>-1}),o=list.filter(function(id){return mine.indexOf(id)<0});list=c.concat(o)}
+  var h=list.slice(0,max).map(function(id){var g=GM[id];return '<span class="chip'+(mine&&mine.indexOf(id)>-1?' com':'')+'"><i style="background:'+g[3]+'"></i>'+esc(g[2])+'</span>'}).join('');
+  if(list.length>max)h+='<span class="chip">+'+(list.length-max)+'</span>';
+  return '<div class="chips">'+h+'</div>';
+}
+function common(p){
+  if(!S.me||p===S.me||!p.games||!S.me.games)return 0;
+  return p.games.filter(function(x){return S.me.games.indexOf(x)>-1}).length;
+}
+
+var tmpPhoto=null,selG=[];
+function gridHTML(q){
+  q=(q||'').trim().toLowerCase();
+  var h=GAMES.filter(function(g){return !q||g[2].toLowerCase().indexOf(q)>-1||g[1].toLowerCase().indexOf(q)>-1}).map(function(g){
+    var on=selG.indexOf(g[0])>-1;
+    return '<button type="button" class="g'+(on?' on':'')+'" data-g="'+g[0]+'" aria-pressed="'+on+'"><span class="gi'+(g[1].length>3?' sm':'')+'" style="background:'+g[3]+'">'+esc(g[1])+'</span><span class="gn">'+esc(g[2])+'</span></button>';
+  }).join('');
+  return h||'<p class="gno">Такой игры нет в списке</p>';
+}
+function phHTML(){return tmpPhoto?'<img src="'+tmpPhoto+'" alt="">':'<div class="plus">+</div>фото'}
 function viewForm(edit){
   NAV.style.display='none';T.textContent=edit?'Редактирование':'Регистрация';
-  var m=S.me||{};tmpPhoto=m.photo||null;
-  V.innerHTML='<div class="photo" id="ph">'+(tmpPhoto?'<img src="'+tmpPhoto+'" alt="">':'+ фото')+'</div><input type="file" id="pf" accept="image/*" hidden>'+
-  '<label>Имя</label><input id="fn" maxlength="30" value="'+esc(m.name||'')+'">'+
-  '<label>Возраст</label><input id="fa" type="number" min="12" max="99" value="'+(m.age||'')+'">'+
-  '<label>О себе: игры, роль, время игры</label><textarea id="fb" maxlength="300">'+esc(m.bio||'')+'</textarea>'+
+  var m=S.me||{};tmpPhoto=m.photo||null;selG=(m.games||[]).slice();
+  V.innerHTML='<div class="photo" id="ph">'+phHTML()+'</div><input type="file" id="pf" accept="image/*" hidden>'+
+  '<div class="two"><div style="flex:1;min-width:0"><label>Имя</label><input id="fn" maxlength="30" value="'+esc(m.name||'')+'"></div>'+
+  '<div style="width:92px"><label>Возраст</label><input id="fa" type="number" min="12" max="99" value="'+(m.age||'')+'"></div></div>'+
+  '<label>Во что играете — нажмите на игру, чтобы добавить</label>'+
+  '<div class="games"><input id="gs" class="gsearch" type="search" placeholder="Найти игру" autocomplete="off">'+
+  '<div class="gscroll" id="gsc"><div class="ggrid" id="gg">'+gridHTML()+'</div></div></div>'+
+  '<div class="ghint"><span id="gc"></span><span>Листайте вниз ↓</span></div>'+
+  '<label>Описание: роль, время игры, что ищете</label><textarea id="fb" maxlength="300">'+esc(m.bio||'')+'</textarea>'+
   '<p id="fe" style="color:var(--no);margin:8px 0 0"></p><button class="btn" id="fs">'+(edit?'Сохранить':'Начать')+'</button>'+
   (edit?'<button class="btn sec" id="fc">Отмена</button>':'');
+  var gg=document.getElementById('gg'),gsc=document.getElementById('gsc'),gc=document.getElementById('gc');
+  function count(){gc.textContent=selG.length?'Выбрано: '+selG.length:'Выберите хотя бы одну игру'}
+  count();
+  gg.onclick=function(e){
+    var b=e.target.closest('.g');if(!b)return;
+    var id=b.dataset.g,i=selG.indexOf(id);
+    if(i>-1)selG.splice(i,1);else selG.push(id);
+    b.classList.toggle('on',i<0);b.setAttribute('aria-pressed',i<0);count();
+  };
+  document.getElementById('gs').oninput=function(){gg.innerHTML=gridHTML(this.value);gsc.scrollTop=0};
   document.getElementById('ph').onclick=function(){document.getElementById('pf').click()};
   document.getElementById('pf').onchange=function(e){
     var f=e.target.files[0];if(!f)return;var r=new FileReader();
     r.onload=function(){var im=new Image();im.onload=function(){
       var c=document.createElement('canvas'),s=480,q=Math.min(im.width,im.height);c.width=c.height=s;
       c.getContext('2d').drawImage(im,(im.width-q)/2,(im.height-q)/2,q,q,0,0,s,s);
-      tmpPhoto=c.toDataURL('image/jpeg',.8);document.getElementById('ph').innerHTML='<img src="'+tmpPhoto+'" alt="">'};im.src=r.result};
+      tmpPhoto=c.toDataURL('image/jpeg',.8);document.getElementById('ph').innerHTML=phHTML()};im.src=r.result};
     r.readAsDataURL(f)};
   if(edit)document.getElementById('fc').onclick=function(){go('profile')};
   document.getElementById('fs').onclick=function(){
@@ -121,15 +235,22 @@ function viewForm(edit){
     if(!tmpPhoto){er.textContent='Добавьте фото';return}
     if(!n){er.textContent='Введите имя';return}
     if(!(a>=12&&a<=99)){er.textContent='Укажите корректный возраст';return}
+    if(!selG.length){er.textContent='Выберите хотя бы одну игру';return}
     if(!b){er.textContent='Добавьте описание';return}
-    api('POST','/api/me',{name:n,age:a,bio:b,photo:tmpPhoto}).then(function(){
-      S.me=Object.assign(S.me||{amin:12,amax:99},{name:n,age:a,bio:b,photo:tmpPhoto});go('search')
+    var games=GAMES.map(function(g){return g[0]}).filter(function(id){return selG.indexOf(id)>-1});
+    api('POST','/api/me',{name:n,age:a,bio:b,photo:tmpPhoto,games:games}).then(function(){
+      S.me=Object.assign(S.me||{amin:12,amax:99},{name:n,age:a,bio:b,photo:tmpPhoto,games:games});
+      Q=[];go('search')
     }).catch(function(){er.textContent='Не удалось сохранить, попробуйте ещё раз'});
   };
 }
 
 function refill(){return api('GET','/api/next').then(function(d){d.users.forEach(function(u){if(!SEEN[u.id]&&!Q.some(function(x){return x.id===u.id}))Q.push(u)})})}
-function cardHTML(p,cls){return '<div class="card '+(cls||'')+'"><div class="pic">'+ava(p)+'<div class="tag l">ЛАЙК</div><div class="tag n">ПРОПУСК</div></div><div class="info"><b>'+esc(p.name)+', '+p.age+'</b><p>'+esc(p.bio)+'</p></div></div>'}
+function cardHTML(p,cls){
+  var c=common(p),mine=(S.me&&p!==S.me)?S.me.games:null;
+  return '<div class="card '+(cls||'')+'"><div class="pic">'+ava(p)+(c?'<div class="cm">🎯 Общих игр: '+c+'</div>':'')+'<div class="tag l">ЛАЙК</div><div class="tag n">ПРОПУСК</div></div>'+
+    '<div class="info"><b>'+esc(p.name)+', '+p.age+'</b>'+chips(p.games,mine,5)+'<p class="bio">'+esc(p.bio)+'</p></div></div>';
+}
 function viewSearch(){
   if(Q.length<2){msg('⏳','Загрузка…');refill().then(function(){if(tab==='search')draw()}).catch(function(){msg('⚠️','Нет связи с сервером','Попробуйте позже')})}else draw();
 }
@@ -163,7 +284,7 @@ function viewMatches(){
   api('GET','/api/matches').then(function(d){
     if(tab!=='matches')return;
     if(!d.matches.length){msg('💬','Пока нет мэтчей','Лайкайте анкеты во вкладке «Поиск». При взаимном лайке анкета появится здесь.');return}
-    V.innerHTML=d.matches.map(function(p){return '<div class="row"><div class="th">'+ava(p)+'</div><div style="flex:1;min-width:0"><b>'+esc(p.name)+', '+p.age+'</b><p>'+esc(p.bio)+'</p></div><button class="gear wr" style="width:auto;padding:0 12px;font-size:14px" data-u="'+esc(p.username||'')+'" data-id="'+p.id+'">Написать</button></div>'}).join('');
+    V.innerHTML=d.matches.map(function(p){return '<div class="row"><div class="th">'+ava(p)+'</div><div style="flex:1;min-width:0"><b>'+esc(p.name)+', '+p.age+'</b>'+chips(p.games,S.me.games,3)+'<p>'+esc(p.bio)+'</p></div><button class="gear wr" style="width:auto;padding:0 12px;font-size:14px" data-u="'+esc(p.username||'')+'" data-id="'+p.id+'">Написать</button></div>'}).join('');
     V.querySelectorAll('.wr').forEach(function(b){b.onclick=function(){
       var u=b.dataset.u;
       if(u){var url='https://t.me/'+u;if(Tg)Tg.openTelegramLink(url);else window.open(url)}
@@ -173,7 +294,7 @@ function viewMatches(){
 }
 
 function viewProfile(){
-  V.innerHTML='<div class="deck" style="height:min(55vh,460px)">'+cardHTML(S.me)+'</div><button class="btn sec" id="ed">Редактировать анкету</button>';
+  V.innerHTML='<div class="deck" style="height:min(60vh,500px)">'+cardHTML(S.me)+'</div><button class="btn sec" id="ed">Редактировать анкету</button>';
   V.querySelector('.tag.l').remove();V.querySelector('.tag.n').remove();
   document.getElementById('ed').onclick=function(){viewForm(true)};
 }
@@ -198,7 +319,11 @@ document.getElementById('sreset').onclick=function(){
 };
 
 if(!INIT){NAV.style.display='none';msg('📱','Откройте через Telegram','Это приложение работает внутри Telegram-бота')}
-else api('GET','/api/me').then(function(d){S.me=d.me;if(S.me)go('search');else viewForm(false)}).catch(function(){NAV.style.display='none';msg('⚠️','Нет связи с сервером','Попробуйте позже')});
+else api('GET','/api/me').then(function(d){
+  S.me=d.me;
+  /* старые анкеты без игр просим дополнить */
+  if(S.me&&S.me.games&&S.me.games.length)go('search');else viewForm(false)
+}).catch(function(){NAV.style.display='none';msg('⚠️','Нет связи с сервером','Попробуйте позже')});
 </script>
 </body>
 </html>
